@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unscathed Monitor</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #0e1116; color: #e6edf3;
+         font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  h1 { font-size: 15px; letter-spacing: 3px; color: #8b949e; font-weight: 600; margin: 0 0 12px; }
+  .card { background: #161b22; border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .state { font-size: 22px; font-weight: 700; }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .k { font-size: 11px; letter-spacing: 1px; color: #8b949e; text-transform: uppercase; }
+  .v { font-size: 16px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  label { display: block; margin: 10px 0 4px; font-size: 13px; color: #8b949e; }
+  input[type=text], input[type=number] { width: 100%; padding: 9px 10px; border-radius: 8px;
+         border: 1px solid #30363d; background: #0d1117; color: #e6edf3; font-size: 15px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 120px; }
+  button { padding: 10px 14px; border-radius: 9px; border: 1px solid #30363d; background: #21262d;
+           color: #e6edf3; font-size: 14px; cursor: pointer; }
+  button.primary { background: #34d399; color: #0e1116; border-color: #34d399; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 8px 0; border-bottom: 1px solid #21262d; }
+  .switch:last-child { border-bottom: 0; }
+  .shot { position: relative; display: inline-block; max-width: 100%; touch-action: none; }
+  .shot img { max-width: 100%; display: block; border-radius: 10px; }
+  .box { position: absolute; border: 2px solid #34d399; background: rgba(52,211,153,.15); pointer-events: none; }
+  .muted { color: #8b949e; font-size: 13px; }
+  .ok { color: #34d399; } .warn { color: #fbbf24; } .bad { color: #f87171; }
+</style>
+</head>
+<body>
+<h1>UNSCATHED MONITOR</h1>
+
+<div class="card">
+  <div class="state"><span class="dot" id="dot"></span><span id="state">connecting…</span></div>
+  <div class="muted" id="game"></div>
+  <div class="muted" id="note"></div>
+</div>
+
+<div class="card">
+  <div class="grid" id="stats"></div>
+</div>
+
+<div class="card">
+  <b>Announcement area</b>
+  <p class="muted">Capture the phone's screen while in game, then drag a box around the strip where
+    messages like "The Dark Arts merchant has appeared!" show up. Only that area is read.</p>
+  <div class="row">
+    <button onclick="capture()" id="capBtn">Capture screen</button>
+    <button onclick="setWhole()">Whole screen</button>
+    <button class="primary" onclick="saveArea()">Save area</button>
+  </div>
+  <p class="muted" id="areaInfo">–</p>
+  <div class="shot" id="shot">
+    <img id="frame" alt="phone screen" onerror="noShot()">
+    <div class="box" id="box" hidden></div>
+  </div>
+</div>
+
+<div class="card">
+  <b>Detection</b>
+  <div class="row">
+    <div><label>Readings to confirm a screen</label><input type="number" id="confirmScans"></div>
+    <div><label>Read announcements every (s)</label><input type="number" id="eventScanSec"></div>
+  </div>
+  <div class="row">
+    <div><label>Reads to confirm an event</label><input type="number" id="eventConfirmScans"></div>
+    <div><label>Event cooldown (min)</label><input type="number" id="eventCooldownMinutes"></div>
+  </div>
+</div>
+
+<div class="card">
+  <b>Auto Play</b>
+  <div class="row">
+    <div><label>Wait after tapping (s)</label><input type="number" id="playVerifySec"></div>
+    <div><label>Gap between taps (s)</label><input type="number" id="playCooldownSec"></div>
+    <div><label>Failed taps before pausing</label><input type="number" id="playMaxAttempts"></div>
+  </div>
+</div>
+
+<div class="card">
+  <b>Watchdog</b>
+  <div class="switch"><span>Auto-recovery</span><input type="checkbox" id="autoRecover"></div>
+  <div class="switch"><span>Discord alerts</span><input type="checkbox" id="discordEnabled"></div>
+  <div class="switch"><span>Log screen text (tuning)</span><input type="checkbox" id="debugLogOcr"></div>
+  <div class="row">
+    <div><label>Frozen after (s)</label><input type="number" id="freezeSeconds"></div>
+    <div><label>Status report (min)</label><input type="number" id="statusReportMinutes"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <button class="primary" onclick="save()">Save settings</button>
+    <button onclick="stopMonitoring()">Stop monitoring</button>
+  </div>
+  <p class="muted" id="saved"></p>
+  <p class="muted">Monitoring can only be started on the phone: Android asks for screen-capture
+    permission there.</p>
+</div>
+
+<script>
+const KEY = new URLSearchParams(location.search).get('k') || '';
+const api = (path, opts) => fetch(path + (path.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(KEY), opts);
+const $ = id => document.getElementById(id);
+const NUMS = ['confirmScans','eventScanSec','eventConfirmScans','eventCooldownMinutes',
+              'playVerifySec','playCooldownSec','playMaxAttempts','freezeSeconds','statusReportMinutes'];
+const BOOLS = ['autoRecover','discordEnabled','debugLogOcr'];
+const TEXTS = [];
+let area = {left: 0, top: 0, right: 1, bottom: 1};
+let frameVersion = -1;
+
+const COLORS = {'In game':'#34d399','Screen still':'#fbbf24','Frozen':'#fb923c','Roblox closed':'#f87171',
+                'Left the game':'#c084fc','Welcome screen':'#fbbf24','Loading':'#60a5fa'};
+
+async function refresh() {
+  try {
+    const s = await (await api('/api/status')).json();
+    $('state').textContent = s.monitoring ? s.state.toUpperCase() : 'MONITORING OFF';
+    $('dot').style.background = s.monitoring ? (COLORS[s.state] || '#60a5fa') : '#8b949e';
+    $('game').textContent = s.game || '';
+    $('note').textContent = [s.note, s.recoveryNote].filter(Boolean).join(' · ');
+    const stats = {
+      'Runtime': s.runtime, 'Last screen change': s.lastScreenChange, 'Network': s.network,
+      'Battery': s.battery, 'Temperature': s.temperature, 'Reconnects': s.reconnects,
+      'Screen': s.screen + ' (' + s.confidence + '%)', 'Waiting to confirm': s.pending || '-',
+      'Play taps': s.playClicks, 'Merchant seen': s.merchantSightings, 'Last merchant': s.lastMerchant,
+      'Last event': s.lastEvent, 'Webhook': s.webhook, 'Last error': s.lastError,
+      'Watchdog uptime': s.uptime,
+    };
+    $('stats').innerHTML = Object.entries(stats)
+      .map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+    if (s.frameVersion !== frameVersion) { frameVersion = s.frameVersion; showFrame(); }
+  } catch (e) {
+    $('state').textContent = 'phone unreachable';
+    $('dot').style.background = '#f87171';
+  }
+}
+
+async function loadSettings() {
+  const c = await (await api('/api/settings')).json();
+  NUMS.forEach(k => $(k).value = c[k]);
+  BOOLS.forEach(k => $(k).checked = !!c[k]);
+  TEXTS.forEach(k => $(k).value = c[k] || '');
+  area = {
+    left: c.eventIgnoreLeftPercent / 100, top: c.eventIgnoreTopPercent / 100,
+    right: 1 - c.eventIgnoreRightPercent / 100, bottom: 1 - c.eventIgnoreBottomPercent / 100,
+  };
+  drawBox();
+}
+
+async function save() {
+  const body = {};
+  NUMS.forEach(k => body[k] = Number($(k).value));
+  BOOLS.forEach(k => body[k] = $(k).checked);
+  TEXTS.forEach(k => body[k] = $(k).value);
+  await api('/api/settings', {method: 'POST', body: JSON.stringify(body)});
+  flash('Saved');
+  loadSettings();
+}
+
+async function saveArea() {
+  const body = {
+    eventIgnoreLeftPercent: Math.round(area.left * 100),
+    eventIgnoreTopPercent: Math.round(area.top * 100),
+    eventIgnoreRightPercent: Math.round((1 - area.right) * 100),
+    eventIgnoreBottomPercent: Math.round((1 - area.bottom) * 100),
+  };
+  await api('/api/settings', {method: 'POST', body: JSON.stringify(body)});
+  flash('Announcement area saved');
+}
+
+async function capture() {
+  $('capBtn').disabled = true;
+  await api('/api/frame/request', {method: 'POST'});
+  setTimeout(() => { showFrame(); $('capBtn').disabled = false; }, 1800);
+}
+
+function showFrame() { $('frame').src = '/api/frame.jpg?k=' + encodeURIComponent(KEY) + '&v=' + Date.now(); }
+function noShot() { $('areaInfo').textContent = 'No screenshot yet: start monitoring on the phone, then Capture screen.'; }
+function setWhole() { area = {left: 0, top: 0, right: 1, bottom: 1}; drawBox(); }
+function flash(msg) { $('saved').textContent = msg + ' at ' + new Date().toLocaleTimeString(); }
+async function stopMonitoring() { await api('/api/stop', {method: 'POST'}); flash('Stop sent'); }
+
+function drawBox() {
+  const img = $('frame'), box = $('box');
+  if (!img.clientWidth) { box.hidden = true; return; }
+  box.hidden = false;
+  box.style.left = (area.left * img.clientWidth) + 'px';
+  box.style.top = (area.top * img.clientHeight) + 'px';
+  box.style.width = ((area.right - area.left) * img.clientWidth) + 'px';
+  box.style.height = ((area.bottom - area.top) * img.clientHeight) + 'px';
+  $('areaInfo').textContent = `Box: left ${Math.round(area.left*100)}%, top ${Math.round(area.top*100)}%, `
+    + `right ${Math.round(area.right*100)}%, bottom ${Math.round(area.bottom*100)}%`;
+}
+
+let dragStart = null;
+const shot = $('shot');
+const pos = e => {
+  const r = $('frame').getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return {x: (p.clientX - r.left) / r.width, y: (p.clientY - r.top) / r.height};
+};
+const clamp = v => Math.max(0, Math.min(1, v));
+const startDrag = e => { dragStart = pos(e); e.preventDefault(); };
+const moveDrag = e => {
+  if (!dragStart) return;
+  const p = pos(e);
+  area = {
+    left: clamp(Math.min(dragStart.x, p.x)), top: clamp(Math.min(dragStart.y, p.y)),
+    right: clamp(Math.max(dragStart.x, p.x)), bottom: clamp(Math.max(dragStart.y, p.y)),
+  };
+  drawBox();
+  e.preventDefault();
+};
+const endDrag = () => { dragStart = null; };
+shot.addEventListener('mousedown', startDrag);
+shot.addEventListener('mousemove', moveDrag);
+window.addEventListener('mouseup', endDrag);
+shot.addEventListener('touchstart', startDrag, {passive: false});
+shot.addEventListener('touchmove', moveDrag, {passive: false});
+window.addEventListener('touchend', endDrag);
+$('frame').addEventListener('load', drawBox);
+window.addEventListener('resize', drawBox);
+
+loadSettings();
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

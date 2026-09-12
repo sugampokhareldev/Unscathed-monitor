@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Unscathed Monitor</string>
+    <string name="accessibility_label">Unscathed Monitor recovery</string>
+    <string name="accessibility_description">Lets Unscathed Monitor see which app is on screen, tap Roblox\'s Reconnect button after a disconnect, and relaunch Roblox after a crash. It does not read or send anything you type.</string>
+</resources>

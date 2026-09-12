@@ -1,0 +1,25 @@
+# Build output
+build/
+.gradle/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+
+# Signing material - these must never be published. Anyone with your keystore and
+# password can publish updates that Android will accept as genuinely yours.
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+captures/
+
+# Scratch
+*.log

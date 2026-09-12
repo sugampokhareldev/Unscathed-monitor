@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+# The CI runner executes these on Linux, so CRLF would make them unrunnable.
+gradlew text eol=lf
+*.sh text eol=lf
+
+gradlew.bat text eol=crlf
+
+*.jar binary
+*.png binary
+*.jks binary
+*.keystore binary
+*.apk binary

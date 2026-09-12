@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shield with a pulse line, sized for the 108dp adaptive-icon canvas (safe zone 66dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF1F2937"
+        android:strokeColor="#FF34D399"
+        android:strokeWidth="3"
+        android:pathData="M54,26 L76,34 L76,52 C76,66 66,77 54,82 C42,77 32,66 32,52 L32,34 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF34D399"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M38,55 L46,55 L50,45 L56,63 L60,52 L70,52" />
+</vector>
