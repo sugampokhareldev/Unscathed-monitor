@@ -15,6 +15,15 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Signing material comes from repository secrets, never from the repo. It is hoisted to
+    # env here because the secrets context cannot be read from a step-level `if`.
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,15 +34,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Signing material comes from repository secrets, never from the repo. If the secrets
-      # are not set the APK is still built, just unsigned - see the README.
+      # With no secrets set the APK is still built, just unsigned - see the README.
       - name: Restore keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        if: env.KEYSTORE_BASE64 != ''
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > release.jks
           {
