@@ -23,3 +23,7 @@ captures/
 
 # Scratch
 *.log
+
+# Base64 export of the signing keystore (made for the CI secret). It is the private key in
+# text form, so it must never be committed.
+*.b64.txt

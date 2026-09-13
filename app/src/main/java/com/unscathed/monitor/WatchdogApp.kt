@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.os.SystemClock
 import com.unscathed.monitor.config.SettingsRepository
 import com.unscathed.monitor.data.AppDatabase
 import com.unscathed.monitor.data.EventLog
@@ -12,6 +13,8 @@ import com.unscathed.monitor.network.DiscordWebhook
 import com.unscathed.monitor.system.BatteryMonitor
 import com.unscathed.monitor.system.NetworkMonitor
 import com.unscathed.monitor.service.WatchdogRuntime
+import com.unscathed.monitor.telemetry.LuaTelemetryRepository
+import com.unscathed.monitor.telemetry.TelemetryHost
 import com.unscathed.monitor.web.WatchdogWebServer
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
@@ -67,6 +70,10 @@ class AppContainer(context: Context) {
     val webhook = DiscordWebhook()
     val alerts = AlertDispatcher(appScope, webhook, settings, network)
     val web = WebServerHost(context.applicationContext, this, appScope)
+
+    /** Optional local telemetry. Screen monitoring never depends on it. */
+    val telemetry = LuaTelemetryRepository(monoClock = SystemClock::elapsedRealtime)
+    val telemetryHost = TelemetryHost(settings, telemetry, events, appScope)
 }
 
 /**

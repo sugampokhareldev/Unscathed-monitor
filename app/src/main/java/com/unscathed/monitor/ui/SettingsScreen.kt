@@ -191,6 +191,26 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        Section("Enhanced telemetry (optional)") {
+            SwitchSetting(
+                "Enable Lua telemetry", draft.telemetryEnabled,
+                "Accepts game state from a collector running on this phone. Screen monitoring keeps " +
+                    "working either way - this is only an extra signal, never a replacement.",
+            ) { draft = draft.copy(telemetryEnabled = it) }
+            NumberSetting("Local port", draft.telemetryPort) { draft = draft.copy(telemetryPort = it) }
+            if (draft.telemetryPort == draft.webPort) {
+                Hint("That is the remote-control port. Pick a different one.", Palette.Amber)
+            }
+            NumberSetting("Offline after no packet for (seconds)", draft.telemetryTimeoutSec) {
+                draft = draft.copy(telemetryTimeoutSec = it)
+            }
+            Hint(
+                "Listens on 127.0.0.1 only, so nothing on your Wi-Fi can reach it. Other apps on this " +
+                    "phone can, so it only ever informs the monitor: it can never make it tap or rejoin. " +
+                    "It starts with monitoring and stops when monitoring stops.",
+            )
+        }
+
         Section("System") {
             NumberSetting("Status report every (minutes, 0 = off)", draft.statusReportMinutes) {
                 draft = draft.copy(statusReportMinutes = it)

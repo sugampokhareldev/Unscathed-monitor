@@ -261,6 +261,13 @@ data class WatchdogSettings(
     /** Anyone with this key can change settings, so it is generated per install. */
     val webKey: String = "",
 
+    // Enhanced telemetry: an optional second data source from a collector on this phone
+    /** Off by default, so nothing listens until the user opts in. */
+    val telemetryEnabled: Boolean = false,
+    val telemetryPort: Int = 17384,
+    /** Telemetry counts as lost after this long without a packet. */
+    val telemetryTimeoutSec: Int = 7,
+
     // System
     val statusReportMinutes: Int = 60,
     val lowBatteryPercent: Int = 20,
@@ -305,6 +312,8 @@ data class WatchdogSettings(
             captureScalePercent = captureScalePercent.coerceIn(30, 100),
             ocrHeartbeatSec = ocrHeartbeatSec.coerceIn(5, 300),
             webPort = webPort.coerceIn(1024, 65535),
+            telemetryPort = telemetryPort.coerceIn(1024, 65535),
+            telemetryTimeoutSec = telemetryTimeoutSec.coerceIn(3, 60),
             statusReportMinutes = statusReportMinutes.coerceIn(0, 24 * 60),
             lowBatteryPercent = lowBatteryPercent.coerceIn(0, 100),
             highTempC = highTempC.coerceIn(30, 70),

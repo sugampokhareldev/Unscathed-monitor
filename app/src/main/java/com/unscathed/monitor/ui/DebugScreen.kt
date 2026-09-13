@@ -1,6 +1,7 @@
 package com.unscathed.monitor.ui
 
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -36,8 +38,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unscathed.monitor.analyzer.ScreenState
 import com.unscathed.monitor.container
 import com.unscathed.monitor.service.WatchdogRuntime
+import com.unscathed.monitor.telemetry.TelemetryConnection
+import com.unscathed.monitor.telemetry.TelemetrySnapshot
+import com.unscathed.monitor.util.formatAgo
 import com.unscathed.monitor.util.formatDateTime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Everything needed to work out why detection did the wrong thing, kept off the main dashboard
@@ -51,6 +58,14 @@ fun DebugScreen(modifier: Modifier = Modifier) {
     val status by WatchdogRuntime.status.collectAsStateWithLifecycle()
     val settings by app.settings.state.collectAsStateWithLifecycle()
     val d = status.debug
+    val telemetry by app.telemetry.snapshot.collectAsStateWithLifecycle()
+    // Ticks on its own so packet age counts up between packets.
+    val nowMono by produceState(SystemClock.elapsedRealtime()) {
+        while (true) {
+            delay(500)
+            value = SystemClock.elapsedRealtime()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -77,6 +92,8 @@ fun DebugScreen(modifier: Modifier = Modifier) {
                 d.reasons.forEach { Text("- $it", fontSize = 13.sp) }
             }
         }
+
+        TelemetryPanel(telemetry, settings.telemetryEnabled, nowMono)
 
         Panel {
             Text("TIMELINE", fontSize = 11.sp, color = Palette.Muted, letterSpacing = 1.sp)
@@ -173,6 +190,70 @@ private fun DebugRow(label: String, value: String?, atWallMs: Long? = null, colo
             atWallMs?.let { Text(formatDateTime(it), fontSize = 11.sp, color = Palette.Muted) }
         }
     }
+}
+
+/**
+ * Enhanced telemetry at a glance. The status line is judged from the clock rather than the last
+ * heartbeat check, so it never shows "Connected" for a collector that has already gone quiet.
+ */
+@Composable
+private fun TelemetryPanel(t: TelemetrySnapshot, enabled: Boolean, nowMono: Long) {
+    val connected = t.isConnectedAt(nowMono)
+    val (statusText, statusColor) = when {
+        !enabled -> "Off" to Palette.Muted
+        t.serverError != null && !t.serverRunning -> "Could not start" to Palette.Red
+        !t.serverRunning -> "Starts with monitoring" to Palette.Muted
+        connected -> "Connected" to Palette.Green
+        t.connection == TelemetryConnection.NEVER_CONNECTED -> "Waiting for collector" to Palette.Amber
+        else -> "Disconnected" to Palette.Red
+    }
+    Panel {
+        Text("ENHANCED TELEMETRY", fontSize = 11.sp, color = Palette.Muted, letterSpacing = 1.sp)
+        Spacer(Modifier.size(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(12.dp).background(statusColor, CircleShape))
+            Spacer(Modifier.width(10.dp))
+            Text(statusText, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = statusColor)
+        }
+        Text(
+            if (connected) {
+                "Receiving game state alongside screen monitoring."
+            } else {
+                "Optional. Screen monitoring works the same without it."
+            },
+            fontSize = 12.sp,
+            color = Palette.Muted,
+        )
+        Spacer(Modifier.size(6.dp))
+        DebugRow("Listening", t.listeningPort?.let { "127.0.0.1:$it" })
+        DebugRow("Last packet", t.lastPacketMonoMs?.let { formatPacketAge(nowMono - it) })
+        DebugRow("Sequence", t.lastSequence?.let { "%,d".format(it) })
+        DebugRow("Schema", t.schemaVersion?.let { "v$it" })
+        DebugRow(
+            "Player",
+            t.state?.player?.inGame?.let { inGame ->
+                (if (inGame) "In game" else "Not in game") + if (connected) "" else " (last known)"
+            },
+        )
+        DebugRow("Packets received", "%,d".format(t.packetsReceived))
+        DebugRow("Out-of-order ignored", "%,d".format(t.stalePackets))
+        DebugRow(
+            "Rejected packets",
+            "%,d".format(t.rejectedPackets),
+            color = if (t.rejectedPackets > 0) Palette.Amber else Palette.Text,
+        )
+        DebugRow("Rate limited", "%,d".format(t.rateLimited))
+        DebugRow("Last parse error", t.lastParseError, t.lastParseErrorWallMs, Palette.Red)
+        t.serverError?.let { DebugRow("Server error", it, color = Palette.Red) }
+        DebugRow("Last connected", t.lastConnectedWallMs?.let(::formatDateTime))
+        DebugRow("Last disconnected", t.lastDisconnectedWallMs?.let(::formatDateTime))
+    }
+}
+
+/** Sub-second precision while it matters, so a 1-2 s heartbeat is visibly ticking. */
+private fun formatPacketAge(ms: Long): String {
+    val age = ms.coerceAtLeast(0)
+    return if (age < 10_000) String.format(Locale.US, "%.1fs ago", age / 1000.0) else formatAgo(age)
 }
 
 private fun screenColor(state: ScreenState): Color = when (state) {

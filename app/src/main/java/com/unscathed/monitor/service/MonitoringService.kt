@@ -175,6 +175,7 @@ class MonitoringService : LifecycleService() {
             WatchdogRuntime.update { it.copy(monitoring = false, note = "Service was stopped by Android") }
         }
         releaseScreenLock()
+        app.telemetryHost.disarm()
         analyzer?.close()
         analyzer = null
         super.onDestroy()
@@ -217,6 +218,7 @@ class MonitoringService : LifecycleService() {
             if (analyzer == null) analyzer = FrameAnalyzer()
             if (s.keepScreenAwake) acquireScreenLock()
             resetSession(s)
+            app.telemetryHost.arm()
             loopJob = launch { runLoop() }
         }
     }
@@ -363,6 +365,7 @@ class MonitoringService : LifecycleService() {
         }
         stopping = true
         releaseScreenLock()
+        app.telemetryHost.disarm()
         loopJob?.cancel()
         loopJob = null
         capture?.release()
